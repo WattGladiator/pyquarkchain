@@ -53,9 +53,7 @@ async def send_request(method, params=None):
     rpc_client = AsyncJsonRpcClient("http://localhost:38391")
     if params is None:
         params = []
-    if isinstance(params, dict):
-        return await rpc_client.call_with_dict_params(method, params)
-    return await rpc_client.call(method, *params)
+    return await rpc_client.call(method, params)
 
 
 class TestJSONRPCHttp(unittest.IsolatedAsyncioTestCase):
