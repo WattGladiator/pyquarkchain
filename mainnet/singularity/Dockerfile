@@ -2,13 +2,16 @@ FROM python:3.13-slim
 LABEL maintainer="quarkchain"
 
 # install rocksdb and build tools (including Rust build deps)
-RUN apt-get update && apt-get upgrade -y && apt-get install -y \
+RUN apt-get update && apt-get install -y \
     build-essential \
     curl \
     gcc \
     g++ \
     make \
     git \
+    python3-dev \
+    pkg-config \
+    libssl-dev \
     libbz2-dev \
     libgflags-dev \
     liblz4-dev \
@@ -16,12 +19,20 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y \
     libsnappy-dev \
     libzstd-dev \
     zlib1g-dev \
-    vim \
   && rm -rf /var/lib/apt/lists/*
 
-# Install Rust toolchain (needed to build the ethash_rs extension)
-RUN curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain stable --profile minimal
+# Python
+RUN pip install --upgrade pip
+
+# Rust
+RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
 ENV PATH="/root/.cargo/bin:${PATH}"
+ENV CARGO_HOME=/root/.cargo
+ENV RUSTUP_HOME=/root/.rustup
+
+RUN rustup toolchain install stable
+RUN rustup default stable
+RUN rustc --version && cargo --version
 
 # set up code
 RUN mkdir /code
