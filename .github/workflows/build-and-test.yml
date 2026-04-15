@@ -8,7 +8,7 @@ env:
 jobs:
   test-without-integration:
     runs-on: ubuntu-latest
-    container: quarkchaindocker/pyquarkchain:test-py3.13
+    container: quarkchaindocker/pyquarkchain:upgraded
 
     steps:
     - uses: actions/checkout@v4
@@ -50,7 +50,7 @@ jobs:
 
   test-integration-and-qkc-specific-state:
     runs-on: ubuntu-latest
-    container: quarkchaindocker/pyquarkchain:test-py3.13
+    container: quarkchaindocker/pyquarkchain:upgraded
 
     steps:
     - uses: actions/checkout@v4
