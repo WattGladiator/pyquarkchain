@@ -48,7 +48,7 @@ jobs:
 
   test-integration-and-qkc-specific-state:
     runs-on: ubuntu-latest
-    container: quarkchaindocker/pyquarkchain:upgraded
+    container: quarkchaindocker/pyquarkchain:test-py3-13
 
     steps:
     - uses: actions/checkout@v4
