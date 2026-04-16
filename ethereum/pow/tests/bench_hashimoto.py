@@ -26,6 +26,7 @@ Run with:
 import copy
 import struct
 import time
+import warnings
 
 import numpy as np
 from Crypto.Hash import keccak
@@ -55,6 +56,8 @@ from ethereum.pow.ethash_utils import (
 # ===========================================================================
 try:
     import pyethash as _pyethash
+    # Suppress DeprecationWarning from pyethash C extension (PY_SSIZE_T_CLEAN)
+    warnings.filterwarnings("ignore", message="PY_SSIZE_T_CLEAN", category=DeprecationWarning)
     _has_pyethash = True
 except ImportError:
     _has_pyethash = False
