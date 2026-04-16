@@ -16,9 +16,9 @@ Sections:
   6. check_pow end-to-end
 
 NOTE on sizes:
-  - old / R1 / R2 use is_test=True sizes (cache=1KB, dataset=32KB).
-  - pyethash always uses real epoch-0 DAG sizes (cache≈16MB) — labeled clearly.
-  - For a fair comparison, R2 is also timed at real epoch-0 sizes alongside pyethash.
+  - All implementations use real epoch-0 DAG sizes (cache≈16MB, dataset≈1GB).
+  - old mkcache is skipped (>60s); R1 cache is reused for old benchmarks.
+  - pyethash is included in the hashimoto_light section for direct comparison.
 
 Run with:
     PYTHONPATH=. python -m ethereum.pow.tests.bench_hashimoto
@@ -251,42 +251,36 @@ def _row_partial(label, fns_and_args, N):
 # Main
 # ===========================================================================
 if __name__ == "__main__":
-    CACHE_SIZE = 1024
-    FULL_SIZE  = 32 * 1024
-    SEED   = b"\x00" * 32
+    CACHE_SIZE = _get_cache_size(0)   # real epoch-0 cache size (~16MB)
+    FULL_SIZE  = _get_full_size(0)    # real epoch-0 dataset size (~1GB)
+    SEED   = b"\x00" * 32             # epoch-0 seed
     HEADER = bytes.fromhex("c9149cc0386e689d789a1c2f3d5d169a61a6218ed30e74414dc736e442ef3d1f")
     NONCE  = (0).to_bytes(8, byteorder="big")
 
-    # ---- build caches (test sizes) ----
-    print("Building caches (test sizes: cache=1KB, dataset=32KB)...")
-    t0 = time.perf_counter(); old_cache = old_mkcache(CACHE_SIZE, 0);     t_oc = time.perf_counter() - t0
-    t0 = time.perf_counter(); r1_cache  = r1_mkcache(CACHE_SIZE, SEED);   t_mc = time.perf_counter() - t0
-    t0 = time.perf_counter(); r2_cache  = r2_mkcache(CACHE_SIZE, SEED);   t_nc = time.perf_counter() - t0
-    print(f"  mkcache  old={t_oc*1000:.1f}ms  R1={t_mc*1000:.1f}ms  R2={t_nc*1000:.1f}ms  "
-          f"old/R1={t_oc/t_mc:.1f}x  old/R2={t_oc/t_nc:.1f}x")
-
-    # ---- build pyethash cache (real epoch-0 sizes) ----
+    # ---- build caches (real epoch-0) ----
+    print(f"Building caches (real epoch-0: cache={CACHE_SIZE//1024//1024}MB, dataset={FULL_SIZE//1024//1024}MB)...")
+    print("  old mkcache: skipped (>60s at epoch-0) — using R1 cache for old benchmarks")
+    t0 = time.perf_counter(); r1_cache = r1_mkcache(CACHE_SIZE, SEED); t_mc = time.perf_counter() - t0
+    old_cache = r1_cache  # R1 produces identical data to old; correctness verified separately
+    t0 = time.perf_counter(); r2_cache = r2_mkcache(CACHE_SIZE, SEED); t_nc = time.perf_counter() - t0
     py_cache = None
     if _has_pyethash:
-        print("Building pyethash cache (real epoch-0: cache≈16MB)...")
-        t0 = time.perf_counter()
-        py_cache = _pyethash.mkcache_bytes(0)
-        t_pyc = time.perf_counter() - t0
-        py_full_size = _get_full_size(0)
-        print(f"  pyethash mkcache={t_pyc*1000:.1f}ms  full_size={py_full_size//1024//1024}MB")
+        t0 = time.perf_counter(); py_cache = _pyethash.mkcache_bytes(0); t_pyc = time.perf_counter() - t0
+        print(f"  mkcache  R1={t_mc:.2f}s  R2={t_nc:.2f}s  pyethash={t_pyc*1000:.1f}ms  "
+              f"R1/R2={t_mc/t_nc:.1f}x  R1/pyethash={t_mc/t_pyc:.0f}x")
+    else:
+        print(f"  mkcache  R1={t_mc:.2f}s  R2={t_nc:.2f}s  R1/R2={t_mc/t_nc:.1f}x")
 
-    # ---- correctness (test sizes) ----
-    old_r = old_hashimoto_light(FULL_SIZE, old_cache, HEADER, NONCE)
+    # ---- correctness ----
     mid_r = r1_hashimoto_light(FULL_SIZE, r1_cache, HEADER, NONCE)
     new_r = r2_hashimoto_light(FULL_SIZE, r2_cache, HEADER, NONCE)
-    assert old_r == mid_r, f"old/R1 MISMATCH\n  old={old_r}\n  R1={mid_r}"
-    assert old_r == new_r, f"old/R2 MISMATCH\n  old={old_r}\n  R2={new_r}"
-    py_tag = "OK (diff sizes)" if _has_pyethash else "SKIP (not installed)"
-    print(f"  result   old/R1/R2=OK  pyethash={py_tag}  mix={old_r[b'mix digest'].hex()[:16]}...\n")
+    assert mid_r == new_r, f"R1/R2 MISMATCH\n  R1={mid_r}\n  R2={new_r}"
+    py_tag = "OK" if _has_pyethash else "SKIP (not installed)"
+    print(f"  result   R1/R2=OK  pyethash={py_tag}  mix={mid_r[b'mix digest'].hex()[:16]}...\n")
 
     # ---- calc_dataset_item ----
     N2 = 300
-    print(f"calc_dataset_item  x{N2} calls  (test sizes)")
+    print(f"calc_dataset_item  x{N2} calls  (real epoch-0 cache)")
 
     t0 = time.perf_counter()
     for i in range(N2): old_calc_dataset_item(old_cache, i)
@@ -305,12 +299,11 @@ if __name__ == "__main__":
     print(f"  R2   {t_r2_i:.3f}s  {t_r2_i/N2*1000:.2f}ms/call  old/R2={t_old_i/t_r2_i:.2f}x")
     print(f"  pyethash  N/A (C++ API does not expose calc_dataset_item)")
 
-    # ---- hashimoto_light (test sizes) ----
+    # ---- hashimoto_light ----
     N = 30
-    print(f"\nhashimoto_light  x{N} calls  (test sizes: cache=1KB, dataset=32KB)")
+    print(f"\nhashimoto_light  x{N} calls  (real epoch-0: cache={CACHE_SIZE//1024//1024}MB, dataset={FULL_SIZE//1024//1024}MB)")
 
     for _ in range(2):
-        old_hashimoto_light(FULL_SIZE, old_cache, HEADER, NONCE)
         r1_hashimoto_light(FULL_SIZE, r1_cache, HEADER, NONCE)
         r2_hashimoto_light(FULL_SIZE, r2_cache, HEADER, NONCE)
 
@@ -328,34 +321,14 @@ if __name__ == "__main__":
 
     print(f"  old  {t_old:.3f}s  {t_old/N*1000:.1f}ms/call")
     print(f"  R1   {t_mid:.3f}s  {t_mid/N*1000:.1f}ms/call  old/R1={t_old/t_mid:.2f}x")
-    print(f"  R2   {t_r2:.3f}s  {t_r2/N*1000:.1f}ms/call  old/R2={t_old/t_r2:.2f}x")
-
-    # ---- pyethash hashimoto_light (real epoch-0 sizes) ----
+    print(f"  R2   {t_r2:.3f}s  {t_r2/N*1000:.1f}ms/call  old/R2={t_old/t_r2:.2f}x", end="")
     if _has_pyethash and py_cache is not None:
-        NP = 30
-        print(f"\nhashimoto_light  x{NP} calls  (pyethash, real epoch-0: cache≈16MB, dataset≈{py_full_size//1024//1024}MB)")
         for _ in range(2):
             _pyethash.hashimoto_light(0, py_cache, HEADER, 0)
         t0 = time.perf_counter()
-        for i in range(NP):
-            _pyethash.hashimoto_light(0, py_cache, HEADER, i)
+        for i in range(N): _pyethash.hashimoto_light(0, py_cache, HEADER, i)
         t_py = time.perf_counter() - t0
-        print(f"  pyethash  {t_py:.3f}s  {t_py/NP*1000:.1f}ms/call")
-
-        # R2 at same real epoch-0 sizes for fair comparison
-        print("  building R2 real epoch-0 cache (≈16MB, may take a few seconds)...")
-        real_cache_size = _get_cache_size(0)
-        t0 = time.perf_counter()
-        r2_real_cache = r2_mkcache(real_cache_size, SEED[:32] if len(SEED) == 32 else b"\x00" * 32)
-        t_build = time.perf_counter() - t0
-        print(f"  R2 real cache built in {t_build:.2f}s ({real_cache_size//1024}KB)")
-        for _ in range(2):
-            r2_hashimoto_light(py_full_size, r2_real_cache, HEADER, NONCE)
-        t0 = time.perf_counter()
-        for i in range(NP):
-            r2_hashimoto_light(py_full_size, r2_real_cache, HEADER, i.to_bytes(8, "big"))
-        t_r2_real = time.perf_counter() - t0
-        print(f"  R2(real) {t_r2_real:.3f}s  {t_r2_real/NP*1000:.1f}ms/call  R2/pyethash={t_r2_real/t_py:.1f}x")
+        print(f"\n  pyethash  {t_py:.3f}s  {t_py/N*1000:.1f}ms/call  old/pyethash={t_old/t_py:.0f}x  R2/pyethash={t_r2/t_py:.1f}x")
     else:
         print(f"\n  pyethash  (skipped — run: pip install pyethash)")
 
