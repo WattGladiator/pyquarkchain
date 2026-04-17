@@ -149,13 +149,13 @@ _R2_FNV_PRIME = np.uint32(FNV_PRIME)
 def _r2_sha3_512(x):
     """sha3-512: bytes or ndarray → uint32 ndarray (16,)."""
     if isinstance(x, np.ndarray):
-        x = x.tobytes()
+        x = x.astype("<u4", copy=False).tobytes()
     return np.frombuffer(_sha3_512(x), dtype="<u4").copy()
 
 def _r2_sha3_256(x):
     """sha3-256: bytes or ndarray → uint32 ndarray (8,)."""
     if isinstance(x, np.ndarray):
-        x = x.tobytes()
+        x = x.astype("<u4", copy=False).tobytes()
     return np.frombuffer(_sha3_256(x), dtype="<u4").copy()
 
 def r2_mkcache(cache_size, seed):
@@ -212,6 +212,7 @@ def r2_hashimoto_light(full_size, cache, header, nonce):
         cmix = mix_r[:, 0] * _R2_FNV_PRIME ^ mix_r[:, 1]
         cmix = cmix * _R2_FNV_PRIME ^ mix_r[:, 2]
         cmix = cmix * _R2_FNV_PRIME ^ mix_r[:, 3]
+    cmix = cmix.astype("<u4", copy=False)
     s_cmix = np.concatenate([s, cmix])
     return {
         b"mix digest": cmix.tobytes(),
