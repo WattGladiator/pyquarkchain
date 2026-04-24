@@ -82,7 +82,7 @@ setup(
     long_description=read("README.md"),
     classifiers=["Development Status :: 0 - Development", "License :: MIT License"],
     install_requires=install_requires,
-    python_requires=">=3.5",
+    python_requires=">=3.13",
     cmdclass={"develop": custom_develop},
     ext_modules=ext_modules,
     rust_extensions=rust_extensions,
