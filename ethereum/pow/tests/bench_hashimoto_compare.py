@@ -15,7 +15,8 @@ Sections:
   5. hashimoto_light throughput
   6. check_pow end-to-end
 
-Uses is_test=True sizes (cache=1024B, dataset=32KB) for fast iteration.
+Uses real epoch-0 DAG sizes (cache≈16MB, dataset≈1GB).
+old mkcache is skipped (>60s); R1 cache is reused for old benchmarks.
 Run with:
     PYTHONPATH=. python -m ethereum.pow.tests.bench_hashimoto_compare
 """
@@ -138,7 +139,11 @@ from ethereum.pow.ethash import (
     mkcache as r2_mkcache,
     hashimoto as _r2_hashimoto,
 )
-from ethereum.pow.ethash_utils import ethash_sha3_512 as _r2_sha3_512
+from ethereum.pow.ethash_utils import (
+    ethash_sha3_512 as _r2_sha3_512,
+    get_cache_size as _get_cache_size,
+    get_full_size as _get_full_size,
+)
 
 _R2_FNV_PRIME = np.uint32(FNV_PRIME)
 
@@ -279,25 +284,25 @@ def _row_partial(label, fns_and_args, N):
 # Main
 # ===========================================================================
 if __name__ == "__main__":
-    CACHE_SIZE = 1024
-    FULL_SIZE  = 32 * 1024
-    SEED   = b"\x00" * 32
+    CACHE_SIZE = _get_cache_size(0)   # real epoch-0 cache size (~16MB)
+    FULL_SIZE  = _get_full_size(0)    # real epoch-0 dataset size (~1GB)
+    SEED   = b"\x00" * 32             # epoch-0 seed
     HEADER = bytes.fromhex("c9149cc0386e689d789a1c2f3d5d169a61a6218ed30e74414dc736e442ef3d1f")
     NONCE  = (0).to_bytes(8, byteorder="big")
 
-    # ---- build caches ----
-    print("Building caches...")
-    t0 = time.perf_counter(); old_cache = old_mkcache(CACHE_SIZE, SEED); t_oc = time.perf_counter() - t0
+    # ---- build caches (real epoch-0) ----
+    print(f"Building caches (real epoch-0: cache={CACHE_SIZE//1024//1024}MB, dataset={FULL_SIZE//1024//1024}MB)...")
+    print("  old mkcache: skipped (>60s at epoch-0) — using R1 cache for old benchmarks")
     t0 = time.perf_counter(); r1_cache = r1_mkcache(CACHE_SIZE, SEED); t_mc = time.perf_counter() - t0
+    old_cache = r1_cache  # R1 produces identical data to old; correctness verified at test sizes
     t0 = time.perf_counter(); r2_cache = r2_mkcache(CACHE_SIZE, 0);    t_nc = time.perf_counter() - t0
     r5_cache = None
     if _has_r5:
         t0 = time.perf_counter(); r5_cache = r5_mkcache(CACHE_SIZE, 0); t_r5c = time.perf_counter() - t0
-        print(f"  mkcache  old={t_oc*1000:.1f}ms  R1={t_mc*1000:.1f}ms  R2={t_nc*1000:.1f}ms  R5={t_r5c*1000:.1f}ms  "
-              f"old/R1={t_oc/t_mc:.1f}x  old/R2={t_oc/t_nc:.1f}x  old/R5={t_oc/t_r5c:.1f}x")
+        print(f"  mkcache  R1={t_mc:.2f}s  R2={t_nc:.2f}s  R5={t_r5c*1000:.1f}ms  "
+              f"R1/R2={t_mc/t_nc:.1f}x  R1/R5={t_mc/t_r5c:.0f}x")
     else:
-        print(f"  mkcache  old={t_oc*1000:.1f}ms  R1={t_mc*1000:.1f}ms  R2={t_nc*1000:.1f}ms  "
-              f"old/R1={t_oc/t_mc:.1f}x  old/R2={t_oc/t_nc:.1f}x")
+        print(f"  mkcache  R1={t_mc:.2f}s  R2={t_nc:.2f}s  R1/R2={t_mc/t_nc:.1f}x")
 
     # ---- correctness ----
     old_r = old_hashimoto_light(FULL_SIZE, old_cache, HEADER, NONCE)
@@ -332,7 +337,7 @@ if __name__ == "__main__":
 
     # ---- calc_dataset_item breakdown ----
     N2 = 300
-    print(f"calc_dataset_item  x{N2} calls")
+    print(f"calc_dataset_item  x{N2} calls  (real epoch-0 cache)")
 
     t0 = time.perf_counter()
     for i in range(N2): old_calc_dataset_item(old_cache, i)
@@ -375,7 +380,7 @@ if __name__ == "__main__":
 
     # ---- hashimoto_light benchmark ----
     N = 30
-    print(f"\nhashimoto_light  x{N} calls  (cache=1KB, dataset=32KB)")
+    print(f"\nhashimoto_light  x{N} calls  (real epoch-0: cache={CACHE_SIZE//1024//1024}MB, dataset={FULL_SIZE//1024//1024}MB)")
 
     for _ in range(2):
         old_hashimoto_light(FULL_SIZE, old_cache, HEADER, NONCE)
