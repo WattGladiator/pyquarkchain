@@ -1528,6 +1528,7 @@ class JSONRPCWebsocketServer:
     async def start(self):
         self._server = await websockets.serve(self.__handle, self.host, self.port)
 
+
     def shutdown(self):
         if hasattr(self, '_server') and self._server is not None:
             self._server.close()

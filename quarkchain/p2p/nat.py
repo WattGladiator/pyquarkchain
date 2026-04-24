@@ -118,6 +118,7 @@ class UPnPService(BaseService):
         factory = UpnpFactory(requester)
         found = asyncio.Event()
 
+
         async def on_response(response):
             if self._service:
                 return
