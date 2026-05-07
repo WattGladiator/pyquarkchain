@@ -1,3 +1,4 @@
+import math
 from typing import Union
 from Crypto.Hash import keccak
 
@@ -41,7 +42,9 @@ def ethash_sha3_256(x: Union[bytes, np.ndarray]) -> np.ndarray:
 
 
 def isprime(x):
-    for i in range(2, int(x ** 0.5)):
+    if x < 2:
+        return False
+    for i in range(2, math.isqrt(x) + 1):
         if not x % i:
             return False
     return True
