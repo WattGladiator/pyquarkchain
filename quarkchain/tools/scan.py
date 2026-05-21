@@ -169,6 +169,15 @@ def _quarter_key(ts):
     return f"{dt.year}-Q{q}"
 
 
+def _month_offset(ym: str, delta: int) -> str:
+    """Shift a 'YYYY-MM' string by *delta* months (positive or negative)."""
+    year, month = int(ym[:4]), int(ym[5:])
+    month += delta
+    year  += (month - 1) // 12
+    month  = (month - 1) % 12 + 1
+    return f"{year:04d}-{month:02d}"
+
+
 # ---------------------------------------------------------------------------
 # Markdown output
 # ---------------------------------------------------------------------------
@@ -219,12 +228,28 @@ def render_report(args, shard_count, all_records):
         [(m, f"{tx_mon[m]:,}", f"{len(usr_mon[m]):,}") for m in months],
     ))
 
-    # Quarterly
+    # Quarterly (calendar Q1/Q2/Q3/Q4)
     quarters = sorted(tx_qtr)
     lines.append(_md_table(
         "3-Month (Quarter)",
         ["Quarter", "TX Count", "Active Users"],
         [(q, f"{tx_qtr[q]:,}", f"{len(usr_qtr[q]):,}") for q in quarters],
+    ))
+
+    # Rolling 3-month: for each month M in the data, sum M-2 + M-1 + M
+    rolling_rows = []
+    for m in sorted(tx_mon):
+        prev2, prev1 = _month_offset(m, -2), _month_offset(m, -1)
+        tx_3m = tx_mon.get(prev2, 0) + tx_mon.get(prev1, 0) + tx_mon[m]
+        usr_3m = (usr_mon.get(prev2, set())
+                  | usr_mon.get(prev1, set())
+                  | usr_mon[m])
+        label = f"{prev2} ~ {m}"
+        rolling_rows.append((label, f"{tx_3m:,}", f"{len(usr_3m):,}"))
+    lines.append(_md_table(
+        "Rolling 3-Month",
+        ["Window (end month)", "TX Count", "Active Users"],
+        rolling_rows,
     ))
 
     return "\n".join(lines)
