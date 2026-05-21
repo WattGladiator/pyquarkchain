@@ -718,7 +718,7 @@ class SlaveConnection(ClusterConnection):
             self.master_server.root_state.add_validated_minor_block_hash(
                 minor_block_header.get_hash(), coinbase_amount_map.balance_map
             )
-            Logger.info(
+            Logger.debug(
                 "adding {} mblock to db".format(minor_block_header.get_hash().hex())
             )
         return AddMinorBlockHeaderListResponse(error_code=0)
